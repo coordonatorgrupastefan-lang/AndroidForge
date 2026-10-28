@@ -445,16 +445,30 @@ def main() -> int:
     chosen_jdk = max(jdk_candidates, key=lambda v: (major(v), minor(v)))
 
     # Pick Gradle
-    chosen_gradle = gradle_wrapper_v  # prefer the bundled wrapper version
-    if not chosen_gradle:
-        chosen_gradle = pick_gradle_for_agp(agp, rules)
-    if not chosen_gradle:
-        chosen_gradle = "8.0"  # safe modern fallback
+    required_gradle = pick_gradle_for_agp(agp, rules)
+
+    def version_tuple(v):
+        nums = [int(x) for x in re.findall(r"\d+", str(v))]
+        return tuple((nums + [0, 0, 0])[:3])
+
+    chosen_gradle = gradle_wrapper_v or required_gradle or "8.0"
 
     # Determine if wrapper can be used
     use_wrapper = bool(wrapper.get("present"))
-    if wrapper.get("uses_http"):
-        # We can fix it; still usable
+
+    if gradle_wrapper_v and required_gradle:
+        if version_tuple(gradle_wrapper_v) < version_tuple(required_gradle):
+            print(
+                f"Wrapper Gradle {gradle_wrapper_v} is too old "
+                f"for AGP {agp}; required Gradle is {required_gradle}. "
+                "Using standalone Gradle instead.",
+                file=sys.stderr,
+            )
+            chosen_gradle = required_gradle
+            use_wrapper = False
+
+    if wrapper.get("uses_http") and use_wrapper:
+       # The URL can be fixed to HTTPS; wrapper remains usable.
         use_wrapper = True
 
     # Pick Flutter

@@ -295,30 +295,34 @@ jobs:
           key: flutter-pub-${{ hashFiles('**/pubspec.yaml', '**/pubspec.lock') }}
           restore-keys: |
             flutter-pub-
-
+      
       # ---------------------------------------------------------------------
       # Step 10: Verify standalone Gradle (fallback)
       # ---------------------------------------------------------------------
       - name: Verify standalone Gradle (fallback)
         if: steps.toolchain.outputs.use_wrapper == 'false'
+        shell: bash
         run: |
-          set -e
+          set -euo pipefail
           GRADLE_VER="${{ steps.toolchain.outputs.gradle_version }}"
 
-          echo "System Gradle:"
-          gradle --version | head -5
-
-          if [ -n "$GRADLE_VER" ] && [ "$GRADLE_VER" != "8.9" ]; then
-            echo "Installing required Gradle version: $GRADLE_VER"
-
-            wget -q "https://services.gradle.org/distributions/gradle-${GRADLE_VER}-bin.zip" -O /tmp/gradle.zip
-            unzip -q /tmp/gradle.zip -d /opt
-
-            echo "/opt/gradle-${GRADLE_VER}/bin" >> "$GITHUB_PATH"
-            echo "GRADLE_HOME=/opt/gradle-${GRADLE_VER}" >> "$GITHUB_ENV"
-          else
-            echo "Using system Gradle 8.9"
+          if [ -z "$GRADLE_VER" ]; then
+            echo "::error::Gradle version was not detected."
+            exit 1
           fi
+
+          echo "Installing required Gradle version: $GRADLE_VER"
+          wget -q "https://services.gradle.org/distributions/gradle-${GRADLE_VER}-bin.zip" -O /tmp/gradle.zip
+          unzip -q /tmp/gradle.zip -d /opt
+
+          echo "/opt/gradle-${GRADLE_VER}/bin" >> "$GITHUB_PATH"
+          echo "GRADLE_HOME=/opt/gradle-${GRADLE_VER}" >> "$GITHUB_ENV"
+
+          export GRADLE_HOME="/opt/gradle-${GRADLE_VER}"
+          export PATH="$GRADLE_HOME/bin:$PATH"
+
+          gradle --version
+          echo "Standalone Gradle configured: $(gradle --version | grep '^Gradle ' | head -1)"
 
       # ---------------------------------------------------------------------
       # Step 11: Build the project (writes build.json)
